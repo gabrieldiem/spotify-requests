@@ -10,3 +10,25 @@ APIs:
 ### Motivation
 
 Learn the basics of Rust async/await and the Rust toolchain.
+
+### Development setup
+
+Install pre-commit hooks:
+
+```shell
+pre-commit install
+```
+
+To run all pre-commit hooks without making a commit run:
+
+```shell
+pre-commit run --all-files
+```
+
+To create a commit without running the pre-commit hooks run:
+
+```shell
+git commit --no-verify
+```
+
+
