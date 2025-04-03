@@ -23,15 +23,12 @@ const OK_EXIT_CODE: i32 = -1;
 }*/
 
 async fn async_main(
-    client_id: &str,
-    client_secret: &str,
+    client_id: String,
+    client_secret: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let auth_client = auth::AuthClient::new(client_id, client_secret)?;
+    let auth_client = auth::AuthClient::new(&client_id, &client_secret)?;
     let auth = auth_client.authenticate().await?;
-    println!(
-        "{} {} {}",
-        auth.access_token, auth.expires_in, auth.token_type
-    );
+    println!("{:?}", auth);
     Ok(())
 }
 
@@ -74,7 +71,7 @@ async fn main() {
                 }
             };
 
-            let res = async_main(&client_id, &client_secret).await;
+            let res = async_main(client_id, client_secret).await;
             match res {
                 Ok(_) => {
                     exit(OK_EXIT_CODE);
