@@ -1,13 +1,11 @@
 const TOKEN_URL: &str = "https://accounts.spotify.com/api/token";
 
-#[derive(Debug)]
 pub struct AuthData {
-    access_token: String,
-    token_type: String,
-    expires_in: u32,
+    pub access_token: String,
+    pub token_type: String,
+    pub expires_in: u32,
 }
 
-#[derive(Debug)]
 pub struct AuthClient {
     req_client: reqwest::Client,
     client_id: String,

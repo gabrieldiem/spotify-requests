@@ -28,7 +28,10 @@ async fn async_main(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let auth_client = auth::AuthClient::new(client_id, client_secret)?;
     let auth = auth_client.authenticate().await?;
-    println!("{auth:?}");
+    println!(
+        "{} {} {}",
+        auth.access_token, auth.expires_in, auth.token_type
+    );
     Ok(())
 }
 
