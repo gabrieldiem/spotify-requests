@@ -1,9 +1,12 @@
 use crate::auth::{AuthClient, AuthData};
+use serde::{Deserialize, Serialize};
 
 const NEW_ALBUM_RELEASES_URL: &str = "https://api.spotify.com/v1/browse/new-releases";
+fn songs_by_album_url(id: &str) -> String {
+    format!("https://api.spotify.com/v1/albums/{id}/tracks")
+}
 
-#[derive(Debug)]
-#[allow(dead_code)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Album {
     pub id: String,
     pub total_tracks: u32,
@@ -12,11 +15,10 @@ pub struct Album {
     pub songs: Vec<Song>,
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Song {
-    id: String,
-    name: String,
+    pub id: String,
+    pub name: String,
 }
 
 pub struct SpotifyClient {
@@ -90,22 +92,61 @@ impl SpotifyClient {
         Ok(albums)
     }
 
-    pub async fn fill_albums_with_songs(
+    fn parse_a_song(
         &self,
-        _albums: &mut [Album],
-        _country_code: &str,
+        song_data: &serde_json::Value,
+    ) -> Result<Song, Box<dyn std::error::Error>> {
+        let id: String = String::from(song_data["id"].as_str().ok_or("Missing id")?);
+        let name: String = String::from(song_data["name"].as_str().ok_or("Missing name")?);
+
+        Ok(Song { id, name })
+    }
+
+    async fn fill_albums_with_songs(
+        &mut self,
+        albums: &mut [Album],
+        country_code: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        let auth_string = self.get_auth_string().await?;
+
+        for album in albums {
+            let params = [
+                ("id", album.id.clone()),
+                ("market", country_code.to_string()),
+            ];
+            let mut url: String = songs_by_album_url(&album.id);
+            url = reqwest::Url::parse_with_params(&url, &params)?.to_string();
+            let response_data: serde_json::Value = self
+                .req_client
+                .get(url)
+                .header(reqwest::header::AUTHORIZATION, auth_string.as_str())
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            let items = response_data["items"].as_array().ok_or("Missing items")?;
+
+            for item in items {
+                let song = self.parse_a_song(item)?;
+                album.songs.push(song);
+            }
+        }
         Ok(())
+    }
+
+    async fn get_auth_string(&mut self) -> Result<String, Box<dyn std::error::Error>> {
+        self.authenticate().await?;
+        let token_type: &str = self.auth_data.as_ref().unwrap().token_type.as_str();
+        let access_token: &str = self.auth_data.as_ref().unwrap().access_token.as_str();
+        Ok(format!("{token_type} {access_token}"))
     }
 
     pub async fn get_new_albums(
         &mut self,
         country_code: String,
     ) -> Result<Vec<Album>, Box<dyn std::error::Error>> {
-        self.authenticate().await?;
-        let t: &str = self.auth_data.as_ref().unwrap().token_type.as_str();
-        let a: &str = self.auth_data.as_ref().unwrap().access_token.as_str();
-        let auth_string = format!("{} {}", t, a);
+        let auth_string = self.get_auth_string().await?;
 
         let response_data: serde_json::Value = self
             .req_client
@@ -115,6 +156,7 @@ impl SpotifyClient {
             .await?
             .json()
             .await?;
+
         let mut albums = self.parse_albums(response_data)?;
         self.fill_albums_with_songs(&mut albums, &country_code)
             .await?;
