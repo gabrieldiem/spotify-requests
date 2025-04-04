@@ -9,13 +9,16 @@ pub struct AuthData {
 }
 
 pub struct AuthClient {
-    req_client: reqwest::Client,
+    pub req_client: reqwest::Client,
     client_id: String,
     client_secret: String,
 }
 
 impl AuthClient {
-    pub fn new(client_id: &str, client_secret: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(
+        client_id: &str,
+        client_secret: &str,
+    ) -> Result<AuthClient, Box<dyn std::error::Error>> {
         let req_client = reqwest::Client::builder().build()?;
 
         Ok(AuthClient {
@@ -25,14 +28,14 @@ impl AuthClient {
         })
     }
 
-    pub async fn authenticate(&self) -> Result<AuthData, Box<dyn std::error::Error>> {
+    async fn get_access_token(&self) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let params = [
             ("grant_type", "client_credentials"),
             ("client_id", self.client_id.as_str()),
             ("client_secret", self.client_secret.as_str()),
         ];
 
-        let response_data: serde_json::Value = self
+        let response = self
             .req_client
             .post(TOKEN_URL)
             .header(
@@ -44,6 +47,12 @@ impl AuthClient {
             .await?
             .json()
             .await?;
+
+        Ok(response)
+    }
+
+    pub async fn authenticate(&self) -> Result<AuthData, Box<dyn std::error::Error>> {
+        let response_data = self.get_access_token().await?;
 
         let access_token = String::from(
             response_data["access_token"]

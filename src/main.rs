@@ -1,5 +1,10 @@
 mod auth;
+mod market;
+mod spotify;
 
+use auth::AuthClient;
+use market::Market;
+use spotify::SpotifyClient;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -8,27 +13,14 @@ use std::process::exit;
 const ERROR_EXIT_CODE: i32 = -1;
 const OK_EXIT_CODE: i32 = -1;
 
-/*async fn example() -> Option<String> {
-    let client = reqwest::Client::builder()
-        .build()
-        .ok()?;
-
-    let body = client.get("https://api.spotify.com/v1/browse/new-releases")
-        .send()
-        .await.ok()?
-        .text()
-        .await.ok()?;
-
-    Some(body)
-}*/
-
 async fn async_main(
     client_id: String,
     client_secret: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let auth_client = auth::AuthClient::new(&client_id, &client_secret)?;
-    let auth = auth_client.authenticate().await?;
-    println!("{:?}", auth);
+    let auth_client = AuthClient::new(&client_id, &client_secret)?;
+    let mut spotify_client = SpotifyClient::new(auth_client)?;
+    let albums_with_songs = spotify_client.get_new_albums(Market::argentina()).await?;
+    println!("{:?}", albums_with_songs.first());
     Ok(())
 }
 
