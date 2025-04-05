@@ -1,4 +1,5 @@
-use crate::auth::{AuthClient, AuthData};
+use crate::auth::auth_client::AuthClient;
+use crate::auth::auth_data::AuthData;
 use serde::{Deserialize, Serialize};
 
 const NEW_ALBUM_RELEASES_URL: &str = "https://api.spotify.com/v1/browse/new-releases";
@@ -144,7 +145,7 @@ impl SpotifyClient {
 
     pub async fn get_new_albums(
         &mut self,
-        country_code: String,
+        country_code: &str,
     ) -> Result<Vec<Album>, Box<dyn std::error::Error>> {
         let auth_string = self.get_auth_string().await?;
 
@@ -158,7 +159,7 @@ impl SpotifyClient {
             .await?;
 
         let mut albums = self.parse_albums(response_data)?;
-        self.fill_albums_with_songs(&mut albums, &country_code)
+        self.fill_albums_with_songs(&mut albums, country_code)
             .await?;
         Ok(albums)
     }

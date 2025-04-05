@@ -1,14 +1,7 @@
-const ARGENTINA_ISO3166_CODE: &str = "AR";
-//const US_ISO3166_CODE: &str = "US";
+pub struct Market {}
 
-pub(crate) struct Market {}
-
+#[allow(dead_code)]
 impl Market {
-    pub fn argentina() -> String {
-        ARGENTINA_ISO3166_CODE.to_string()
-    }
-
-    /*pub fn united_states() -> String {
-        US_ISO3166_CODE.to_string()
-    }*/
+    pub const ARGENTINA: &'static str = "AR";
+    pub const UNITED_STATES: &'static str = "US";
 }
