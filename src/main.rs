@@ -44,8 +44,9 @@ async fn fetch_and_print_albums(
     client_id: String,
     client_secret: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let auth_client = AuthClient::new(client_id, client_secret)?;
-    let mut spotify_client = SpotifyClient::new(auth_client)?;
+    let http_client = reqwest::Client::new();
+    let auth_client = AuthClient::new(client_id, client_secret, &http_client);
+    let mut spotify_client = SpotifyClient::new(auth_client, &http_client);
     let albums_with_songs = spotify_client.get_new_albums(Market::ARGENTINA).await?;
     print_albums(&albums_with_songs);
     Ok(())

@@ -2,23 +2,23 @@ use crate::auth::auth_data::AuthData;
 
 const TOKEN_URL: &str = "https://accounts.spotify.com/api/token";
 
-pub struct AuthClient {
-    pub req_client: reqwest::Client,
+pub struct AuthClient<'a> {
+    http_client: &'a reqwest::Client,
     client_id: String,
     client_secret: String,
 }
 
-impl AuthClient {
+impl AuthClient<'_> {
     pub fn new(
         client_id: String,
         client_secret: String,
-    ) -> Result<AuthClient, Box<dyn std::error::Error>> {
-        let req_client = reqwest::Client::builder().build()?;
-        Ok(AuthClient {
-            req_client,
+        http_client: &reqwest::Client,
+    ) -> AuthClient {
+        AuthClient {
+            http_client,
             client_id,
             client_secret,
-        })
+        }
     }
 
     async fn get_access_token(&self) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
@@ -29,7 +29,7 @@ impl AuthClient {
         ];
 
         let response = self
-            .req_client
+            .http_client
             .post(TOKEN_URL)
             .header(
                 reqwest::header::CONTENT_TYPE,

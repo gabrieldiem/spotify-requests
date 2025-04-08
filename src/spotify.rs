@@ -5,20 +5,22 @@ use crate::song::Song;
 
 const NEW_ALBUM_RELEASES_URL: &str = "https://api.spotify.com/v1/browse/new-releases";
 
-pub struct SpotifyClient {
-    auth_client: AuthClient,
-    req_client: reqwest::Client,
+pub struct SpotifyClient<'a> {
+    auth_client: AuthClient<'a>,
+    http_client: &'a reqwest::Client,
     auth_data: Option<AuthData>,
 }
 
-impl SpotifyClient {
-    pub fn new(auth_client: AuthClient) -> Result<SpotifyClient, Box<dyn std::error::Error>> {
-        let req_client = reqwest::Client::builder().build()?;
-        Ok(SpotifyClient {
+impl SpotifyClient<'_> {
+    pub fn new<'a>(
+        auth_client: AuthClient<'a>,
+        http_client: &'a reqwest::Client,
+    ) -> SpotifyClient<'a> {
+        SpotifyClient {
             auth_client,
-            req_client,
+            http_client,
             auth_data: None,
-        })
+        }
     }
 
     fn songs_by_album_url(id: &str) -> String {
@@ -115,7 +117,7 @@ impl SpotifyClient {
             let mut url: String = SpotifyClient::songs_by_album_url(&album.id);
             url = reqwest::Url::parse_with_params(&url, &params)?.to_string();
             let response_data: serde_json::Value = self
-                .req_client
+                .http_client
                 .get(url)
                 .header(reqwest::header::AUTHORIZATION, auth_string.as_str())
                 .send()
@@ -149,7 +151,7 @@ impl SpotifyClient {
         let auth_string = self.get_auth_string().await?;
 
         let response_data: serde_json::Value = self
-            .req_client
+            .http_client
             .get(NEW_ALBUM_RELEASES_URL)
             .header(reqwest::header::AUTHORIZATION, auth_string)
             .send()
