@@ -1,26 +1,9 @@
+use crate::album::Album;
 use crate::auth::auth_client::AuthClient;
 use crate::auth::auth_data::AuthData;
-use serde::{Deserialize, Serialize};
+use crate::song::Song;
 
 const NEW_ALBUM_RELEASES_URL: &str = "https://api.spotify.com/v1/browse/new-releases";
-fn songs_by_album_url(id: &str) -> String {
-    format!("https://api.spotify.com/v1/albums/{id}/tracks")
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Album {
-    pub id: String,
-    pub total_tracks: u32,
-    pub available_markets: Vec<String>,
-    pub name: String,
-    pub songs: Vec<Song>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Song {
-    pub id: String,
-    pub name: String,
-}
 
 pub struct SpotifyClient {
     auth_client: AuthClient,
@@ -38,22 +21,34 @@ impl SpotifyClient {
         })
     }
 
+    fn songs_by_album_url(id: &str) -> String {
+        format!("https://api.spotify.com/v1/albums/{id}/tracks")
+    }
+
     async fn authenticate(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        match self.auth_data {
-            Some(_) => Ok(()),
-            None => {
-                self.auth_data = Some(self.auth_client.authenticate().await?);
-                Ok(())
-            }
+        if self.auth_data.is_none() {
+            self.auth_data = Some(self.auth_client.authenticate().await?);
         }
+        Ok(())
+    }
+
+    fn str_from_value(
+        &self,
+        data: &serde_json::Value,
+        key: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        Ok(data[key]
+            .as_str()
+            .ok_or(format!("Missing {key}"))?
+            .to_string())
     }
 
     fn parse_an_album(
         &self,
         album_data: &serde_json::Value,
     ) -> Result<Album, Box<dyn std::error::Error>> {
-        let id: String = String::from(album_data["id"].as_str().ok_or("Missing id")?);
-        let name: String = String::from(album_data["name"].as_str().ok_or("Missing name")?);
+        let id = self.str_from_value(album_data, "id")?;
+        let name: String = self.str_from_value(album_data, "name")?;
         let total_tracks = album_data["total_tracks"]
             .as_i64()
             .ok_or("Missing total_tracks")? as u32;
@@ -61,13 +56,14 @@ impl SpotifyClient {
         let markets_serde: &Vec<serde_json::Value> = album_data["available_markets"]
             .as_array()
             .ok_or("Missing available_markets")?;
-        let available_markets: Vec<String> = markets_serde
-            .iter()
-            .map(|elem| match elem.as_str().ok_or("Missing string") {
-                Ok(elem_str) => String::from(elem_str),
-                Err(_) => "".to_string(),
-            })
-            .collect();
+
+        let mut available_markets: Vec<String> = Vec::new();
+        for market in markets_serde {
+            match market.as_str().ok_or("Missing string") {
+                Ok(elem_str) => available_markets.push(String::from(elem_str)),
+                Err(_) => continue,
+            }
+        }
 
         Ok(Album {
             id,
@@ -82,13 +78,14 @@ impl SpotifyClient {
         &self,
         data: serde_json::Value,
     ) -> Result<Vec<Album>, Box<dyn std::error::Error>> {
-        let albums: &serde_json::Value = &data["albums"];
-        let items: &Vec<serde_json::Value> =
-            albums["items"].as_array().ok_or("Missing items array")?;
-        let albums = items
-            .iter()
-            .map(|value| self.parse_an_album(value))
-            .collect::<Result<Vec<Album>, _>>()?;
+        let items = data["albums"]["items"]
+            .as_array()
+            .ok_or("Missing items array")?;
+        let mut albums: Vec<Album> = Vec::new();
+
+        for album in items {
+            albums.push(self.parse_an_album(album)?);
+        }
 
         Ok(albums)
     }
@@ -97,8 +94,8 @@ impl SpotifyClient {
         &self,
         song_data: &serde_json::Value,
     ) -> Result<Song, Box<dyn std::error::Error>> {
-        let id: String = String::from(song_data["id"].as_str().ok_or("Missing id")?);
-        let name: String = String::from(song_data["name"].as_str().ok_or("Missing name")?);
+        let id = self.str_from_value(song_data, "id")?;
+        let name = self.str_from_value(song_data, "name")?;
 
         Ok(Song { id, name })
     }
@@ -115,7 +112,7 @@ impl SpotifyClient {
                 ("id", album.id.clone()),
                 ("market", country_code.to_string()),
             ];
-            let mut url: String = songs_by_album_url(&album.id);
+            let mut url: String = SpotifyClient::songs_by_album_url(&album.id);
             url = reqwest::Url::parse_with_params(&url, &params)?.to_string();
             let response_data: serde_json::Value = self
                 .req_client
@@ -138,9 +135,11 @@ impl SpotifyClient {
 
     async fn get_auth_string(&mut self) -> Result<String, Box<dyn std::error::Error>> {
         self.authenticate().await?;
-        let token_type: &str = self.auth_data.as_ref().unwrap().token_type.as_str();
-        let access_token: &str = self.auth_data.as_ref().unwrap().access_token.as_str();
-        Ok(format!("{token_type} {access_token}"))
+        let auth_data = self.auth_data.as_ref().unwrap();
+        Ok(format!(
+            "{} {}",
+            auth_data.token_type, auth_data.access_token
+        ))
     }
 
     pub async fn get_new_albums(
